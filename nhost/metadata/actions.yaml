@@ -1,0 +1,42 @@
+actions:
+  - name: triggerWorkflowRun
+    definition:
+      kind: synchronous
+      handler: "{{NHOST_FUNCTIONS_URL}}/actions/trigger-workflow-run"
+      arguments:
+        - name: workflow_id
+          type: uuid!
+      output_type: WorkflowRunResult
+    comment: "Triggers a workflow run. Hasura Actions only support role-level gating; org and role permissions (owner/editor check) are enforced inside the function handler itself."
+    permissions:
+      - role: user
+  - name: approveStep
+    definition:
+      kind: synchronous
+      handler: "{{NHOST_FUNCTIONS_URL}}/actions/approve-step"
+      arguments:
+        - name: step_run_id
+          type: uuid!
+      output_type: ApproveStepResult
+    comment: "Approves a paused approval_gate step. Hasura Actions only support role-level gating; approver role verification is enforced inside the function handler itself."
+    permissions:
+      - role: user
+custom_types:
+  enums: []
+  input_objects: []
+  objects:
+    - name: WorkflowRunResult
+      fields:
+        - name: run_id
+          type: uuid!
+        - name: status
+          type: String!
+    - name: ApproveStepResult
+      fields:
+        - name: step_run_id
+          type: uuid!
+        - name: status
+          type: String!
+        - name: resumed
+          type: Boolean!
+  scalars: []
