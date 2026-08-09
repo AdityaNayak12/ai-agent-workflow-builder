@@ -24,3 +24,25 @@ export const GET_ORG_WORKFLOWS = gql`
     }
   }
 `;
+
+export const GET_WORKFLOW_DETAIL = gql`
+  query GetWorkflowDetail($id: uuid!) {
+    workflows_by_pk(id: $id) {
+      id
+      org_id
+      name
+      description
+      is_active
+      created_at
+      updated_at
+      steps(order_by: { step_order: asc }) {
+        id
+        workflow_id
+        step_order
+        type
+        name
+        config
+      }
+    }
+  }
+`;
