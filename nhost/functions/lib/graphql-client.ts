@@ -62,6 +62,33 @@ export async function executeGraphQL<T = any>(
       return { data: { workflows_by_pk: rows[0] || null } as any };
     }
 
+    if (query.includes('GetWebhookTriggerDetails')) {
+      const sql = `
+        SELECT json_build_object(
+          'id', wt.id,
+          'type', wt.type,
+          'config', wt.config,
+          'workflow_id', wt.workflow_id,
+          'workflow', json_build_object(
+            'id', w.id,
+            'org_id', w.org_id,
+            'is_active', w.is_active,
+            'organization', json_build_object(
+              'id', o.id,
+              'calls_used', o.calls_used,
+              'max_calls', o.max_calls
+            )
+          )
+        )
+        FROM workflow_triggers wt
+        JOIN workflows w ON wt.workflow_id = w.id
+        JOIN organizations o ON w.org_id = o.id
+        WHERE wt.id = '${variables.trigger_id}'::uuid;
+      `;
+      const rows = queryPostgres(sql);
+      return { data: { workflow_triggers_by_pk: rows[0] || null } as any };
+    }
+
     if (query.includes('GetStepRunDetailsForApprove')) {
       const sql = `
         SELECT json_build_object(
@@ -94,6 +121,16 @@ export async function executeGraphQL<T = any>(
       `;
       const rows = queryPostgres(sql);
       return { data: { org_members: rows } as any };
+    }
+
+    if (query.includes('CreateWebhookWorkflowRun')) {
+      const sql = `
+        INSERT INTO workflow_runs (workflow_id, status, triggered_by, started_at)
+        VALUES ('${variables.workflow_id}'::uuid, 'running', NULL, NOW())
+        RETURNING json_build_object('id', id);
+      `;
+      const rows = queryPostgres(sql);
+      return { data: { insert_workflow_runs_one: rows[0] } as any };
     }
 
     if (query.includes('CreateWorkflowRun')) {
