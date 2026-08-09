@@ -20,3 +20,47 @@ select_permissions:
           org_members:
             user_id:
               _eq: X-Hasura-User-Id
+insert_permissions:
+  - role: user
+    permission:
+      check:
+        organization:
+          org_members:
+            _and:
+              - user_id:
+                  _eq: X-Hasura-User-Id
+              - role:
+                  _eq: owner
+      columns:
+        - id
+        - org_id
+        - user_id
+        - role
+        - created_at
+        - updated_at
+update_permissions:
+  - role: user
+    permission:
+      columns:
+        - role
+        - updated_at
+      filter:
+        organization:
+          org_members:
+            _and:
+              - user_id:
+                  _eq: X-Hasura-User-Id
+              - role:
+                  _eq: owner
+      check: null
+delete_permissions:
+  - role: user
+    permission:
+      filter:
+        organization:
+          org_members:
+            _and:
+              - user_id:
+                  _eq: X-Hasura-User-Id
+              - role:
+                  _eq: owner

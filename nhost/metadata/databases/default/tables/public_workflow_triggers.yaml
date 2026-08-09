@@ -1,3 +1,6 @@
+# NOTE: Webhook-type triggers are restricted to owners only per Layer 2 rules.
+# This fine-grained check is intentionally deferred to app-level validation 
+# in the create/edit workflow mutation resolver.
 table:
   name: workflow_triggers
   schema: public
@@ -21,3 +24,55 @@ select_permissions:
             org_members:
               user_id:
                 _eq: X-Hasura-User-Id
+insert_permissions:
+  - role: user
+    permission:
+      check:
+        workflow:
+          organization:
+            org_members:
+              _and:
+                - user_id:
+                    _eq: X-Hasura-User-Id
+                - role:
+                    _in:
+                      - owner
+                      - editor
+      columns:
+        - id
+        - workflow_id
+        - type
+        - config
+        - created_at
+        - updated_at
+update_permissions:
+  - role: user
+    permission:
+      columns:
+        - type
+        - config
+        - updated_at
+      filter:
+        workflow:
+          organization:
+            org_members:
+              _and:
+                - user_id:
+                    _eq: X-Hasura-User-Id
+                - role:
+                    _in:
+                      - owner
+                      - editor
+      check: null
+delete_permissions:
+  - role: user
+    permission:
+      filter:
+        workflow:
+          organization:
+            org_members:
+              _and:
+                - user_id:
+                    _eq: X-Hasura-User-Id
+                - role:
+                    _eq: owner

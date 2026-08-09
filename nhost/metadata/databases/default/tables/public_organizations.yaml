@@ -27,6 +27,20 @@ select_permissions:
         - created_at
         - updated_at
       filter:
-        org_members:
+        org_members:1
           user_id:
             _eq: X-Hasura-User-Id
+update_permissions:
+  - role: user
+    permission:
+      columns:
+        - name
+        - updated_at
+      filter:
+        org_members:
+          _and:
+            - user_id:
+                _eq: X-Hasura-User-Id
+            - role:
+                _eq: owner
+      check: null
