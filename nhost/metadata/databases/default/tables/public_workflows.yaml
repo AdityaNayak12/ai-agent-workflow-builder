@@ -27,3 +27,20 @@ array_relationships:
         table:
           name: workflow_runs
           schema: public
+select_permissions:
+  - role: user
+    permission:
+      columns:
+        - id
+        - org_id
+        - name
+        - description
+        - is_active
+        - created_by
+        - created_at
+        - updated_at
+      filter:
+        organization:
+          org_members:
+            user_id:
+              _eq: X-Hasura-User-Id
