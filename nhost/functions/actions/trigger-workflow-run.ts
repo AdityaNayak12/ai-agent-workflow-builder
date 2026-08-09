@@ -2,8 +2,11 @@ import { Request, Response } from 'express';
 import { executeGraphQL } from '../lib/graphql-client';
 import { executeLLMCall } from '../steps/llm-call';
 import { executeHTTPRequest } from '../steps/http-request';
+import { executeConditionalBranch } from '../steps/conditional-branch';
+import { executeDBWrite } from '../steps/db-write';
+import { executeNotify } from '../steps/notify';
 
-// orchestrates triggerWorkflowRun Action with real step execution
+// orchestrates triggerWorkflowRun Action with full step execution engine
 export default async function handler(req: Request, res: Response) {
   const input = req.body?.input || {};
   const sessionVariables = req.body?.session_variables || {};
@@ -112,7 +115,8 @@ export default async function handler(req: Request, res: Response) {
   let previousOutput: any = null;
 
   // 6. Loop through steps in order
-  for (const step of steps) {
+  for (let i = 0; i < steps.length; i++) {
+    const step = steps[i];
     const config = step.config || {};
 
     if (step.type === 'approval_gate') {
@@ -146,7 +150,7 @@ export default async function handler(req: Request, res: Response) {
       break; // STOP loop immediately
     }
 
-    // Create running step_run
+    // Create running step_run for current step
     const createStepRunRes = await executeGraphQL(`
       mutation CreateStepRun($workflow_run_id: uuid!, $step_id: uuid!) {
         insert_step_runs_one(object: {
@@ -174,7 +178,6 @@ export default async function handler(req: Request, res: Response) {
 
         previousOutput = stepRes.output;
 
-        // Complete step_run
         if (stepRunId) {
           await executeGraphQL(`
             mutation CompleteStepRun($step_run_id: uuid!, $output: jsonb, $attempt_count: Int!) {
@@ -195,7 +198,6 @@ export default async function handler(req: Request, res: Response) {
         const attemptCount = (err as any).attempt_count || 2;
         const errorMessage = err.message || 'Step execution failed';
 
-        // Fail step_run
         if (stepRunId) {
           await executeGraphQL(`
             mutation FailStepRun($step_run_id: uuid!, $error: String!, $attempt_count: Int!) {
@@ -213,7 +215,6 @@ export default async function handler(req: Request, res: Response) {
           `, { step_run_id: stepRunId, error: errorMessage, attempt_count: attemptCount });
         }
 
-        // Fail workflow_run
         await executeGraphQL(`
           mutation FailWorkflowRun($run_id: uuid!) {
             update_workflow_runs_by_pk(
@@ -228,31 +229,167 @@ export default async function handler(req: Request, res: Response) {
         isFailed = true;
         break; // STOP loop on failure
       }
-    } else {
-      // Stubbed step types (notify, conditional_branch, db_write)
-      await new Promise((resolve) => setTimeout(resolve, 500));
-      previousOutput = { result: "stub_success", step_type: step.type };
+    } else if (step.type === 'conditional_branch') {
+      try {
+        const branchRes = executeConditionalBranch(config, previousOutput);
+        previousOutput = branchRes.output;
+
+        if (stepRunId) {
+          await executeGraphQL(`
+            mutation CompleteBranchStepRun($step_run_id: uuid!, $output: jsonb) {
+              update_step_runs_by_pk(
+                pk_columns: { id: $step_run_id },
+                _set: {
+                  status: "completed",
+                  output: $output,
+                  attempt_count: 1
+                }
+              ) {
+                id
+              }
+            }
+          `, { step_run_id: stepRunId, output: branchRes.output });
+        }
+
+        // Handle skip-to control flow jump
+        if (branchRes.skip_to_order !== null && branchRes.skip_to_order !== undefined) {
+          const targetIndex = steps.findIndex((s: any) => s.step_order === branchRes.skip_to_order);
+          if (targetIndex > i) {
+            // Record step_runs for skipped intermediate steps
+            for (let j = i + 1; j < targetIndex; j++) {
+              const skippedStep = steps[j];
+              await executeGraphQL(`
+                mutation CreateSkippedStepRun($workflow_run_id: uuid!, $step_id: uuid!) {
+                  insert_step_runs_one(object: {
+                    workflow_run_id: $workflow_run_id,
+                    step_id: $step_id,
+                    status: "skipped",
+                    input: { skipped: true, note: "Skipped by conditional branch" },
+                    output: { skipped: true },
+                    attempt_count: 0
+                  }) {
+                    id
+                  }
+                }
+              `, { workflow_run_id: runId, step_id: skippedStep.id });
+            }
+            // Jump loop index to target step
+            i = targetIndex - 1;
+          }
+        }
+      } catch (err: any) {
+        const errorMessage = err.message || 'Conditional branch evaluation failed';
+
+        if (stepRunId) {
+          await executeGraphQL(`
+            mutation FailBranchStepRun($step_run_id: uuid!, $error: String!) {
+              update_step_runs_by_pk(
+                pk_columns: { id: $step_run_id },
+                _set: {
+                  status: "failed",
+                  error: $error,
+                  attempt_count: 1
+                }
+              ) {
+                id
+              }
+            }
+          `, { step_run_id: stepRunId, error: errorMessage });
+        }
+
+        await executeGraphQL(`
+          mutation FailWorkflowRun($run_id: uuid!) {
+            update_workflow_runs_by_pk(
+              pk_columns: { id: $run_id },
+              _set: { status: "failed" }
+            ) {
+              id
+            }
+          }
+        `, { run_id: runId });
+
+        isFailed = true;
+        break;
+      }
+    } else if (step.type === 'db_write') {
+      try {
+        const dbRes = await executeDBWrite(runId, stepRunId, config, previousOutput);
+        previousOutput = dbRes.output;
+
+        if (stepRunId) {
+          await executeGraphQL(`
+            mutation CompleteDBWriteStepRun($step_run_id: uuid!, $output: jsonb) {
+              update_step_runs_by_pk(
+                pk_columns: { id: $step_run_id },
+                _set: {
+                  status: "completed",
+                  output: $output,
+                  attempt_count: 1
+                }
+              ) {
+                id
+              }
+            }
+          `, { step_run_id: stepRunId, output: dbRes.output });
+        }
+      } catch (err: any) {
+        const errorMessage = err.message || 'DB Write failed';
+
+        if (stepRunId) {
+          await executeGraphQL(`
+            mutation FailDBWriteStepRun($step_run_id: uuid!, $error: String!) {
+              update_step_runs_by_pk(
+                pk_columns: { id: $step_run_id },
+                _set: {
+                  status: "failed",
+                  error: $error,
+                  attempt_count: 1
+                }
+              ) {
+                id
+              }
+            }
+          `, { step_run_id: stepRunId, error: errorMessage });
+        }
+
+        await executeGraphQL(`
+          mutation FailWorkflowRun($run_id: uuid!) {
+            update_workflow_runs_by_pk(
+              pk_columns: { id: $run_id },
+              _set: { status: "failed" }
+            ) {
+              id
+            }
+          }
+        `, { run_id: runId });
+
+        isFailed = true;
+        break;
+      }
+    } else if (step.type === 'notify') {
+      const notifyRes = executeNotify(config, previousOutput);
+      previousOutput = notifyRes.output;
 
       if (stepRunId) {
         await executeGraphQL(`
-          mutation CompleteStubStepRun($step_run_id: uuid!) {
+          mutation CompleteNotifyStepRun($step_run_id: uuid!, $output: jsonb) {
             update_step_runs_by_pk(
               pk_columns: { id: $step_run_id },
               _set: {
                 status: "completed",
-                output: { result: "stub_success", step_name: "${step.name}" },
+                output: $output,
                 attempt_count: 1
               }
             ) {
               id
             }
           }
-        `, { step_run_id: stepRunId });
+        `, { step_run_id: stepRunId, output: notifyRes.output });
       }
     }
   }
 
-  // 7. Increment org quota for executed billable steps (if any executed)
+  // 7. Increment org quota for executed billable steps
   if (billableStepCount > 0) {
     await executeGraphQL(`
       mutation IncrementOrgUsage($org_id: uuid!, $inc: Int!) {

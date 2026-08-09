@@ -109,6 +109,16 @@ export async function executeGraphQL<T = any>(
       return { data: { insert_step_runs_one: rows[0] } as any };
     }
 
+    if (query.includes('CreateSkippedStepRun')) {
+      const sql = `
+        INSERT INTO step_runs (workflow_run_id, step_id, status, input, output, attempt_count, started_at, finished_at)
+        VALUES ('${variables.workflow_run_id}'::uuid, '${variables.step_id}'::uuid, 'skipped', '{"skipped": true}'::jsonb, '{"skipped": true}'::jsonb, 0, NOW(), NOW())
+        RETURNING json_build_object('id', id);
+      `;
+      const rows = queryPostgres(sql);
+      return { data: { insert_step_runs_one: rows[0] } as any };
+    }
+
     if (query.includes('PauseWorkflowRun')) {
       const sql = `
         UPDATE workflow_runs
@@ -131,9 +141,9 @@ export async function executeGraphQL<T = any>(
       return { data: { insert_step_runs_one: rows[0] } as any };
     }
 
-    if (query.includes('CompleteStepRun')) {
+    if (query.includes('CompleteStepRun') || query.includes('CompleteBranchStepRun') || query.includes('CompleteDBWriteStepRun') || query.includes('CompleteNotifyStepRun')) {
       const outputJson = JSON.stringify(variables.output || {});
-      const attempts = variables.attempt_count || 1;
+      const attempts = variables.attempt_count !== undefined ? variables.attempt_count : 1;
       const sql = `
         UPDATE step_runs
         SET status = 'completed', finished_at = NOW(), output = '${outputJson.replace(/'/g, "''")}'::jsonb, attempt_count = ${attempts}
@@ -144,9 +154,9 @@ export async function executeGraphQL<T = any>(
       return { data: { update_step_runs_by_pk: rows[0] } as any };
     }
 
-    if (query.includes('FailStepRun')) {
+    if (query.includes('FailStepRun') || query.includes('FailBranchStepRun') || query.includes('FailDBWriteStepRun')) {
       const errEscaped = (variables.error || '').replace(/'/g, "''");
-      const attempts = variables.attempt_count || 2;
+      const attempts = variables.attempt_count || 1;
       const sql = `
         UPDATE step_runs
         SET status = 'failed', finished_at = NOW(), error = '${errEscaped}', attempt_count = ${attempts}
@@ -155,6 +165,17 @@ export async function executeGraphQL<T = any>(
       `;
       const rows = queryPostgres(sql);
       return { data: { update_step_runs_by_pk: rows[0] } as any };
+    }
+
+    if (query.includes('InsertRunResult')) {
+      const dataJson = JSON.stringify(variables.data || {});
+      const sql = `
+        INSERT INTO workflow_run_results (workflow_run_id, step_run_id, data, created_at)
+        VALUES ('${variables.workflow_run_id}'::uuid, '${variables.step_run_id}'::uuid, '${dataJson.replace(/'/g, "''")}'::jsonb, NOW())
+        RETURNING json_build_object('id', id, 'created_at', created_at);
+      `;
+      const rows = queryPostgres(sql);
+      return { data: { insert_workflow_run_results_one: rows[0] } as any };
     }
 
     if (query.includes('FailWorkflowRun')) {
