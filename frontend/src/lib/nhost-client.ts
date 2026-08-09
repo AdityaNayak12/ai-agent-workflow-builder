@@ -2,15 +2,15 @@ import { NhostClient } from '@nhost/react';
 import { ApolloClient, InMemoryCache, createHttpLink } from '@apollo/client';
 import { setContext } from '@apollo/client/link/context';
 
-const subdomain = process.env.NEXT_PUBLIC_NHOST_SUBDOMAIN || 'local';
-const region = process.env.NEXT_PUBLIC_NHOST_REGION || 'local';
+const authUrl = process.env.NEXT_PUBLIC_AUTH_URL || 'http://localhost:1337/v1';
+const HASURA_GRAPHQL_ENDPOINT = process.env.NEXT_PUBLIC_GRAPHQL_URL || 'http://localhost:8080/v1/graphql';
 
 export const nhost = new NhostClient({
-  subdomain,
-  region,
+  authUrl,
+  graphqlUrl: HASURA_GRAPHQL_ENDPOINT,
+  storageUrl: 'http://localhost:1337/v1/storage',
+  functionsUrl: 'http://localhost:1337/v1/functions',
 });
-
-const HASURA_GRAPHQL_ENDPOINT = process.env.NEXT_PUBLIC_GRAPHQL_URL || 'http://localhost:8080/v1/graphql';
 
 const httpLink = createHttpLink({
   uri: HASURA_GRAPHQL_ENDPOINT,
