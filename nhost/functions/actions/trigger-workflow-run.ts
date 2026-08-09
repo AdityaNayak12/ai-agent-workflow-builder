@@ -1,7 +1,9 @@
 import { Request, Response } from 'express';
 import { executeGraphQL } from '../lib/graphql-client';
+import { executeLLMCall } from '../steps/llm-call';
+import { executeHTTPRequest } from '../steps/http-request';
 
-// orchestrates triggerWorkflowRun Action
+// orchestrates triggerWorkflowRun Action with real step execution
 export default async function handler(req: Request, res: Response) {
   const input = req.body?.input || {};
   const sessionVariables = req.body?.session_variables || {};
@@ -41,7 +43,7 @@ export default async function handler(req: Request, res: Response) {
   const orgId = workflow.org_id;
   const org = workflow.organization;
 
-  // 2. Authorization Check (Layer 2): Check caller's role in org_members
+  // 2. Authorization Check (Layer 2)
   const memberRes = await executeGraphQL(`
     query GetOrgMember($org_id: uuid!, $user_id: uuid!) {
       org_members(where: { org_id: { _eq: $org_id }, user_id: { _eq: $user_id } }) {
@@ -69,7 +71,7 @@ export default async function handler(req: Request, res: Response) {
     });
   }
 
-  // 4. Create workflow_run row (status: running, triggered_by: userId)
+  // 4. Create workflow_run row (status: running)
   const createRunRes = await executeGraphQL(`
     mutation CreateWorkflowRun($workflow_id: uuid!, $triggered_by: uuid!) {
       insert_workflow_runs_one(object: {
@@ -105,13 +107,13 @@ export default async function handler(req: Request, res: Response) {
 
   const steps = stepsRes.data?.workflow_steps || [];
   let isPaused = false;
+  let isFailed = false;
   let billableStepCount = 0;
+  let previousOutput: any = null;
 
   // 6. Loop through steps in order
   for (const step of steps) {
-    if (step.type === 'llm_call' || step.type === 'http_request') {
-      billableStepCount++;
-    }
+    const config = step.config || {};
 
     if (step.type === 'approval_gate') {
       // Create paused step_run
@@ -144,14 +146,14 @@ export default async function handler(req: Request, res: Response) {
       break; // STOP loop immediately
     }
 
-    // Non-approval step: create running step_run
+    // Create running step_run
     const createStepRunRes = await executeGraphQL(`
       mutation CreateStepRun($workflow_run_id: uuid!, $step_id: uuid!) {
         insert_step_runs_one(object: {
           workflow_run_id: $workflow_run_id,
           step_id: $step_id,
           status: "running",
-          input: { stub: true, step_type: "${step.type}" }
+          input: ${JSON.stringify(config)}
         }) {
           id
         }
@@ -160,29 +162,113 @@ export default async function handler(req: Request, res: Response) {
 
     const stepRunId = createStepRunRes.data?.insert_step_runs_one?.id;
 
-    // Simulate execution delay (500ms)
-    await new Promise((resolve) => setTimeout(resolve, 500));
-
-    // Complete step_run
-    if (stepRunId) {
-      await executeGraphQL(`
-        mutation CompleteStepRun($step_run_id: uuid!) {
-          update_step_runs_by_pk(
-            pk_columns: { id: $step_run_id },
-            _set: {
-              status: "completed",
-              output: { result: "stub_success", step_name: "${step.name}" }
-            }
-          ) {
-            id
-          }
+    if (step.type === 'llm_call' || step.type === 'http_request') {
+      billableStepCount++;
+      try {
+        let stepRes: { output: any; attempt_count: number };
+        if (step.type === 'llm_call') {
+          stepRes = await executeLLMCall(config, previousOutput);
+        } else {
+          stepRes = await executeHTTPRequest(config);
         }
-      `, { step_run_id: stepRunId });
+
+        previousOutput = stepRes.output;
+
+        // Complete step_run
+        if (stepRunId) {
+          await executeGraphQL(`
+            mutation CompleteStepRun($step_run_id: uuid!, $output: jsonb, $attempt_count: Int!) {
+              update_step_runs_by_pk(
+                pk_columns: { id: $step_run_id },
+                _set: {
+                  status: "completed",
+                  output: $output,
+                  attempt_count: $attempt_count
+                }
+              ) {
+                id
+              }
+            }
+          `, { step_run_id: stepRunId, output: stepRes.output, attempt_count: stepRes.attempt_count });
+        }
+      } catch (err: any) {
+        const attemptCount = (err as any).attempt_count || 2;
+        const errorMessage = err.message || 'Step execution failed';
+
+        // Fail step_run
+        if (stepRunId) {
+          await executeGraphQL(`
+            mutation FailStepRun($step_run_id: uuid!, $error: String!, $attempt_count: Int!) {
+              update_step_runs_by_pk(
+                pk_columns: { id: $step_run_id },
+                _set: {
+                  status: "failed",
+                  error: $error,
+                  attempt_count: $attempt_count
+                }
+              ) {
+                id
+              }
+            }
+          `, { step_run_id: stepRunId, error: errorMessage, attempt_count: attemptCount });
+        }
+
+        // Fail workflow_run
+        await executeGraphQL(`
+          mutation FailWorkflowRun($run_id: uuid!) {
+            update_workflow_runs_by_pk(
+              pk_columns: { id: $run_id },
+              _set: { status: "failed" }
+            ) {
+              id
+            }
+          }
+        `, { run_id: runId });
+
+        isFailed = true;
+        break; // STOP loop on failure
+      }
+    } else {
+      // Stubbed step types (notify, conditional_branch, db_write)
+      await new Promise((resolve) => setTimeout(resolve, 500));
+      previousOutput = { result: "stub_success", step_type: step.type };
+
+      if (stepRunId) {
+        await executeGraphQL(`
+          mutation CompleteStubStepRun($step_run_id: uuid!) {
+            update_step_runs_by_pk(
+              pk_columns: { id: $step_run_id },
+              _set: {
+                status: "completed",
+                output: { result: "stub_success", step_name: "${step.name}" },
+                attempt_count: 1
+              }
+            ) {
+              id
+            }
+          }
+        `, { step_run_id: stepRunId });
+      }
     }
   }
 
-  // 7. Complete run & update quota if not paused
-  if (!isPaused) {
+  // 7. Increment org quota for executed billable steps (if any executed)
+  if (billableStepCount > 0) {
+    await executeGraphQL(`
+      mutation IncrementOrgUsage($org_id: uuid!, $inc: Int!) {
+        update_organizations_by_pk(
+          pk_columns: { id: $org_id },
+          _inc: { calls_used: $inc }
+        ) {
+          id
+          calls_used
+        }
+      }
+    `, { org_id: orgId, inc: billableStepCount });
+  }
+
+  // 8. Complete workflow_run if not paused and not failed
+  if (!isPaused && !isFailed) {
     await executeGraphQL(`
       mutation CompleteWorkflowRun($run_id: uuid!) {
         update_workflow_runs_by_pk(
@@ -193,26 +279,12 @@ export default async function handler(req: Request, res: Response) {
         }
       }
     `, { run_id: runId });
-
-    // Increment org quota if billable steps executed
-    if (billableStepCount > 0) {
-      await executeGraphQL(`
-        mutation IncrementOrgUsage($org_id: uuid!, $inc: Int!) {
-          update_organizations_by_pk(
-            pk_columns: { id: $org_id },
-            _inc: { calls_used: $inc }
-          ) {
-            id
-            calls_used
-          }
-        }
-      `, { org_id: orgId, inc: billableStepCount });
-    }
   }
 
-  // Return final status matching WorkflowRunResult
+  const finalStatus = isPaused ? 'paused' : isFailed ? 'failed' : 'completed';
+
   return res.status(200).json({
     run_id: runId,
-    status: isPaused ? 'paused' : 'completed',
+    status: finalStatus,
   });
 }

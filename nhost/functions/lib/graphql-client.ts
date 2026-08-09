@@ -121,9 +121,10 @@ export async function executeGraphQL<T = any>(
     }
 
     if (query.includes('CreateStepRun')) {
+      const inputJson = JSON.stringify(variables.input || {});
       const sql = `
         INSERT INTO step_runs (workflow_run_id, step_id, status, input, started_at)
-        VALUES ('${variables.workflow_run_id}'::uuid, '${variables.step_id}'::uuid, 'running', '{"stub": true}'::jsonb, NOW())
+        VALUES ('${variables.workflow_run_id}'::uuid, '${variables.step_id}'::uuid, 'running', '${inputJson.replace(/'/g, "''")}'::jsonb, NOW())
         RETURNING json_build_object('id', id);
       `;
       const rows = queryPostgres(sql);
@@ -131,14 +132,40 @@ export async function executeGraphQL<T = any>(
     }
 
     if (query.includes('CompleteStepRun')) {
+      const outputJson = JSON.stringify(variables.output || {});
+      const attempts = variables.attempt_count || 1;
       const sql = `
         UPDATE step_runs
-        SET status = 'completed', finished_at = NOW(), output = '{"result": "stub_success"}'::jsonb
+        SET status = 'completed', finished_at = NOW(), output = '${outputJson.replace(/'/g, "''")}'::jsonb, attempt_count = ${attempts}
         WHERE id = '${variables.step_run_id}'::uuid
         RETURNING json_build_object('id', id);
       `;
       const rows = queryPostgres(sql);
       return { data: { update_step_runs_by_pk: rows[0] } as any };
+    }
+
+    if (query.includes('FailStepRun')) {
+      const errEscaped = (variables.error || '').replace(/'/g, "''");
+      const attempts = variables.attempt_count || 2;
+      const sql = `
+        UPDATE step_runs
+        SET status = 'failed', finished_at = NOW(), error = '${errEscaped}', attempt_count = ${attempts}
+        WHERE id = '${variables.step_run_id}'::uuid
+        RETURNING json_build_object('id', id);
+      `;
+      const rows = queryPostgres(sql);
+      return { data: { update_step_runs_by_pk: rows[0] } as any };
+    }
+
+    if (query.includes('FailWorkflowRun')) {
+      const sql = `
+        UPDATE workflow_runs
+        SET status = 'failed', finished_at = NOW()
+        WHERE id = '${variables.run_id}'::uuid
+        RETURNING json_build_object('id', id);
+      `;
+      const rows = queryPostgres(sql);
+      return { data: { update_workflow_runs_by_pk: rows[0] } as any };
     }
 
     if (query.includes('CompleteWorkflowRun')) {
