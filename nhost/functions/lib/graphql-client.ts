@@ -62,6 +62,30 @@ export async function executeGraphQL<T = any>(
       return { data: { workflows_by_pk: rows[0] || null } as any };
     }
 
+    if (query.includes('GetStepRunDetailsForApprove')) {
+      const sql = `
+        SELECT json_build_object(
+          'id', sr.id,
+          'status', sr.status,
+          'workflow_run_id', sr.workflow_run_id,
+          'workflow_step', json_build_object('id', ws.id, 'step_order', ws.step_order),
+          'workflow_run', json_build_object(
+            'id', wr.id,
+            'workflow_id', wr.workflow_id,
+            'status', wr.status,
+            'workflow', json_build_object('id', w.id, 'org_id', w.org_id)
+          )
+        )
+        FROM step_runs sr
+        JOIN workflow_steps ws ON sr.step_id = ws.id
+        JOIN workflow_runs wr ON sr.workflow_run_id = wr.id
+        JOIN workflows w ON wr.workflow_id = w.id
+        WHERE sr.id = '${variables.step_run_id}'::uuid;
+      `;
+      const rows = queryPostgres(sql);
+      return { data: { step_runs_by_pk: rows[0] || null } as any };
+    }
+
     if (query.includes('GetOrgMember')) {
       const sql = `
         SELECT json_build_object('id', id, 'role', role)
@@ -128,6 +152,28 @@ export async function executeGraphQL<T = any>(
       `;
       const rows = queryPostgres(sql);
       return { data: { update_workflow_runs_by_pk: rows[0] } as any };
+    }
+
+    if (query.includes('ResumeWorkflowRun')) {
+      const sql = `
+        UPDATE workflow_runs
+        SET status = 'running'
+        WHERE id = '${variables.run_id}'::uuid
+        RETURNING json_build_object('id', id);
+      `;
+      const rows = queryPostgres(sql);
+      return { data: { update_workflow_runs_by_pk: rows[0] } as any };
+    }
+
+    if (query.includes('ApproveStepRun')) {
+      const sql = `
+        UPDATE step_runs
+        SET status = 'completed', approved_by = '${variables.user_id}'::uuid, approved_at = NOW(), finished_at = NOW()
+        WHERE id = '${variables.step_run_id}'::uuid
+        RETURNING json_build_object('id', id);
+      `;
+      const rows = queryPostgres(sql);
+      return { data: { update_step_runs_by_pk: rows[0] } as any };
     }
 
     if (query.includes('CreateStepRun')) {
