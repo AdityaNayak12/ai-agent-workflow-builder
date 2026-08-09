@@ -11,7 +11,6 @@ export default function LoginPage() {
 
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [devError, setDevError] = useState<string | null>(null);
 
   const { signInEmailPassword, isLoading: isSigningIn, isError: isSignInError, error: signInError } = useSignInEmailPassword();
   const { signUpEmailPassword, isLoading: isSigningUp, isError: isSignUpError, error: signUpError } = useSignUpEmailPassword();
@@ -23,48 +22,23 @@ export default function LoginPage() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    setDevError(null);
 
-    try {
-      if (isSignUp) {
-        const res = await signUpEmailPassword(email, password);
-        if (res.isSuccess) {
-          router.push('/');
-          return;
-        }
-        if (res.error) {
-          if (res.error.message.includes('Network Error') || res.error.message.includes('Failed to fetch') || res.error.status === 0) {
-            localStorage.setItem('nhost_dev_user_email', email);
-            localStorage.setItem('nhost_dev_authenticated', 'true');
-            window.location.href = '/';
-            return;
-          }
-        }
-      } else {
-        const res = await signInEmailPassword(email, password);
-        if (res.isSuccess) {
-          router.push('/');
-          return;
-        }
-        if (res.error) {
-          if (res.error.message.includes('Network Error') || res.error.message.includes('Failed to fetch') || res.error.status === 0) {
-            localStorage.setItem('nhost_dev_user_email', email);
-            localStorage.setItem('nhost_dev_authenticated', 'true');
-            window.location.href = '/';
-            return;
-          }
-        }
+    if (isSignUp) {
+      const res = await signUpEmailPassword(email, password);
+      if (res.isSuccess) {
+        router.push('/');
       }
-    } catch {
-      localStorage.setItem('nhost_dev_user_email', email);
-      localStorage.setItem('nhost_dev_authenticated', 'true');
-      window.location.href = '/';
+    } else {
+      const res = await signInEmailPassword(email, password);
+      if (res.isSuccess) {
+        router.push('/');
+      }
     }
   };
 
   const isLoading = isSigningIn || isSigningUp;
-  const isError = devError || (isSignUp ? isSignUpError : isSignInError);
-  const errorMsg = devError || (isSignUp ? signUpError?.message : signInError?.message);
+  const isError = isSignUp ? isSignUpError : isSignInError;
+  const error = isSignUp ? signUpError : signInError;
 
   return (
     <div className="min-h-screen bg-[#141414] text-[#EDEBE6] flex flex-col justify-center items-center px-4">
@@ -112,7 +86,7 @@ export default function LoginPage() {
 
           {isError && (
             <div className="bg-[#E5484D]/10 border border-[#E5484D]/30 text-[#E5484D] text-xs font-mono p-2.5 rounded-[4px]">
-              AUTHENTICATION ERROR: {errorMsg || 'Invalid credentials'}
+              AUTHENTICATION ERROR: {error?.message || 'Invalid credentials'}
             </div>
           )}
 

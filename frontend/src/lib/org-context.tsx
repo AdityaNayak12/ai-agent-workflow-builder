@@ -58,18 +58,9 @@ const OrgContext = createContext<OrgContextType>({
 export const OrgProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const { isAuthenticated } = useAuthenticationStatus();
   const [selectedOrgId, setSelectedOrgId] = useState<string | null>(null);
-  const [isDevAuth, setIsDevAuth] = useState(false);
-
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      setIsDevAuth(localStorage.getItem('nhost_dev_authenticated') === 'true');
-    }
-  }, []);
-
-  const activeAuth = isAuthenticated || isDevAuth;
 
   const { data, loading, refetch } = useQuery<GetUserOrgMembershipsData>(GET_USER_ORG_MEMBERSHIPS, {
-    skip: !activeAuth,
+    skip: !isAuthenticated,
     fetchPolicy: 'cache-and-network',
   });
 

@@ -1,6 +1,6 @@
 'use client';
 
-import React, { useEffect, useState } from 'react';
+import React from 'react';
 import { useAuthenticationStatus, useUserData, useSignOut } from '@nhost/react';
 import { useOrg } from '@/lib/org-context';
 import { OrgSwitcher } from '@/components/shared/OrgSwitcher';
@@ -12,29 +12,6 @@ export default function HomePage() {
   const { signOut } = useSignOut();
   const { currentOrg, currentRole, orgMemberships, loading: isOrgLoading } = useOrg();
 
-  const [devEmail, setDevEmail] = useState<string | null>(null);
-  const [isDevAuth, setIsDevAuth] = useState(false);
-
-  useEffect(() => {
-    if (typeof window !== 'undefined') {
-      const devAuthed = localStorage.getItem('nhost_dev_authenticated') === 'true';
-      const email = localStorage.getItem('nhost_dev_user_email');
-      setIsDevAuth(devAuthed);
-      setDevEmail(email);
-    }
-  }, []);
-
-  const activeAuth = isAuthenticated || isDevAuth;
-  const activeEmail = user?.email || devEmail || 'user@organization.com';
-
-  const handleSignOut = () => {
-    localStorage.removeItem('nhost_dev_authenticated');
-    localStorage.removeItem('nhost_dev_user_email');
-    setIsDevAuth(false);
-    signOut();
-    window.location.href = '/login';
-  };
-
   if (isAuthLoading || isOrgLoading) {
     return (
       <div className="min-h-screen bg-[#141414] text-[#EDEBE6] flex justify-center items-center font-mono text-xs text-[#6B6B6B]">
@@ -43,7 +20,7 @@ export default function HomePage() {
     );
   }
 
-  if (!activeAuth) {
+  if (!isAuthenticated) {
     return (
       <div className="min-h-screen bg-[#141414] text-[#EDEBE6] flex flex-col justify-center items-center px-4">
         <div className="bg-[#1C1C1C] border border-[#2A2A2A] rounded-[4px] p-6 max-w-md w-full text-center">
@@ -77,7 +54,7 @@ export default function HomePage() {
         <div className="flex items-center space-x-4">
           <OrgSwitcher />
           <button
-            onClick={handleSignOut}
+            onClick={() => signOut()}
             className="text-xs font-mono text-[#6B6B6B] hover:text-[#E5484D] transition-colors bg-transparent border-none cursor-pointer"
           >
             SIGN OUT
@@ -92,7 +69,7 @@ export default function HomePage() {
             USER SESSION & ORG CONTEXT
           </h2>
           <p className="text-sm font-sans text-[#EDEBE6]">
-            Logged in as <span className="font-mono text-[#E8A33D]">{activeEmail}</span>
+            Logged in as <span className="font-mono text-[#E8A33D]">{user?.email || user?.id}</span>
           </p>
         </div>
 
