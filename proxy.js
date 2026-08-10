@@ -14,6 +14,32 @@ function createProxy(localPort, targetHost) {
       return;
     }
 
+    // Special handling for Nhost functions on port 1337
+    if (localPort === 1337 && req.url.startsWith('/v1/functions/')) {
+      const targetPath = req.url.replace('/v1/functions', '');
+      const options = {
+        hostname: 'localhost',
+        port: 5050,
+        path: targetPath,
+        method: req.method,
+        headers: req.headers,
+      };
+
+      const proxyReq = http.request(options, proxyRes => {
+        res.writeHead(proxyRes.statusCode, proxyRes.headers);
+        proxyRes.pipe(res, { end: true });
+      });
+
+      proxyReq.on('error', err => {
+        console.error(`Functions Proxy Error on port 1337:`, err.message);
+        res.writeHead(502);
+        res.end('Bad Gateway: ' + err.message);
+      });
+
+      req.pipe(proxyReq, { end: true });
+      return;
+    }
+
     const options = {
       hostname: targetHost,
       port: 443,
@@ -43,7 +69,7 @@ function createProxy(localPort, targetHost) {
   server.listen(localPort, () => console.log(`HTTP Local Proxy listening on http://localhost:${localPort} -> https://${targetHost}:443`));
 }
 
-// Proxy 1337 -> Hasura Auth
+// Proxy 1337 -> Hasura Auth & Local Functions
 createProxy(1337, 'local.auth.local.nhost.run');
 
 // Proxy 8080 -> Hasura GraphQL
