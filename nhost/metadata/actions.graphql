@@ -10,6 +10,12 @@ type Mutation {
   ): ApproveStepResult
 }
 
+type Mutation {
+  createWebhookTrigger(
+    workflow_id: uuid!
+  ): CreateWebhookTriggerResult
+}
+
 type WorkflowRunResult {
   run_id: uuid!
   status: String!
@@ -19,4 +25,10 @@ type ApproveStepResult {
   step_run_id: uuid!
   status: String!
   resumed: Boolean!
+}
+
+type CreateWebhookTriggerResult {
+  trigger_id: uuid!
+  webhook_url: String!
+  secret: String!
 }

@@ -21,6 +21,17 @@ actions:
     comment: "Approves a paused approval_gate step. Hasura Actions only support role-level gating; approver role verification is enforced inside the function handler itself."
     permissions:
       - role: user
+  - name: createWebhookTrigger
+    definition:
+      kind: synchronous
+      handler: "{{NHOST_FUNCTIONS_URL}}/actions/create-webhook-trigger"
+      arguments:
+        - name: workflow_id
+          type: uuid!
+      output_type: CreateWebhookTriggerResult
+    comment: "Creates a webhook trigger for a workflow. Only an organization owner can create a webhook trigger. Secret is generated server-side."
+    permissions:
+      - role: user
 custom_types:
   enums: []
   input_objects: []
@@ -39,4 +50,12 @@ custom_types:
           type: String!
         - name: resumed
           type: Boolean!
+    - name: CreateWebhookTriggerResult
+      fields:
+        - name: trigger_id
+          type: uuid!
+        - name: webhook_url
+          type: String!
+        - name: secret
+          type: String!
   scalars: []
