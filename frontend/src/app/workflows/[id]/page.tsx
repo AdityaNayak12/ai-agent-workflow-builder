@@ -14,6 +14,7 @@ import {
 } from '@/graphql/mutations';
 import { StepList } from '@/components/workflow-builder/StepList';
 import { StepItem } from '@/components/workflow-builder/StepEditor';
+import { TriggerConfig } from '@/components/workflow-builder/TriggerConfig';
 
 interface GetWorkflowDetailData {
   workflows_by_pk: {
@@ -31,6 +32,12 @@ interface GetWorkflowDetailData {
       type: string;
       name: string;
       config: any;
+    }[];
+    triggers?: {
+      id: string;
+      type: string;
+      config: any;
+      created_at: string;
     }[];
   } | null;
 }
@@ -51,7 +58,7 @@ export default function WorkflowBuilderPage() {
   const isNew = rawId === 'new';
 
   const { currentOrg, currentRole, loading: orgLoading } = useOrg();
-  const isReadOnly = currentRole !== 'owner' && currentRole !== 'editor';
+  const isReadOnly = currentRole === 'viewer';
 
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
@@ -59,7 +66,7 @@ export default function WorkflowBuilderPage() {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
 
-  const { data, loading: detailLoading } = useQuery<GetWorkflowDetailData>(GET_WORKFLOW_DETAIL, {
+  const { data, loading: detailLoading, refetch } = useQuery<GetWorkflowDetailData>(GET_WORKFLOW_DETAIL, {
     variables: { id: rawId },
     skip: isNew || !rawId,
     fetchPolicy: 'network-only',
@@ -261,6 +268,17 @@ export default function WorkflowBuilderPage() {
             </div>
           </div>
         </div>
+
+        {/* Workflow Triggers Config */}
+        {!isNew && (
+          <TriggerConfig
+            workflowId={rawId}
+            triggers={data?.workflows_by_pk?.triggers || []}
+            isReadOnly={isReadOnly}
+            currentRole={currentRole}
+            onRefresh={refetch}
+          />
+        )}
 
         {/* Workflow Step List Editor */}
         <div className="bg-[#1C1C1C] border border-[#2A2A2A] rounded p-6">

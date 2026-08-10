@@ -43,6 +43,12 @@ export const GET_WORKFLOW_DETAIL = gql`
         name
         config
       }
+      triggers(order_by: { created_at: asc }) {
+        id
+        type
+        config
+        created_at
+      }
     }
   }
 `;

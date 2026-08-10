@@ -66,3 +66,33 @@ export const DELETE_WORKFLOW_STEPS_FOR_WORKFLOW = gql`
     }
   }
 `;
+
+export const CREATE_WEBHOOK_TRIGGER = gql`
+  mutation CreateWebhookTrigger($workflow_id: uuid!) {
+    createWebhookTrigger(workflow_id: $workflow_id) {
+      trigger_id
+      webhook_url
+      secret
+    }
+  }
+`;
+
+export const INSERT_MANUAL_TRIGGER = gql`
+  mutation InsertManualTrigger($workflow_id: uuid!) {
+    insert_workflow_triggers_one(object: { workflow_id: $workflow_id, type: "manual" }) {
+      id
+      workflow_id
+      type
+      created_at
+    }
+  }
+`;
+
+export const DELETE_TRIGGER = gql`
+  mutation DeleteTrigger($id: uuid!) {
+    delete_workflow_triggers_by_pk(id: $id) {
+      id
+    }
+  }
+`;
+
