@@ -54,7 +54,7 @@ interface CreateWorkflowData {
 export default function WorkflowBuilderPage() {
   const params = useParams();
   const router = useRouter();
-  const rawId = params?.id as string;
+  const rawId = (params?.id as string) || 'new';
   const isNew = rawId === 'new';
 
   const { currentOrg, currentRole, loading: orgLoading } = useOrg();

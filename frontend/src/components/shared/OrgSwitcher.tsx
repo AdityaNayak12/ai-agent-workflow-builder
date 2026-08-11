@@ -1,5 +1,6 @@
 'use client';
 
+// ponytail: simplified org switcher using native <select> element
 import React from 'react';
 import { useOrg } from '@/lib/org-context';
 
