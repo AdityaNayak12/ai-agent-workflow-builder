@@ -1,9 +1,5 @@
 import { executeGraphQL } from './graphql-client';
-import { executeLLMCall } from '../steps/llm-call';
-import { executeHTTPRequest } from '../steps/http-request';
-import { executeConditionalBranch } from '../steps/conditional-branch';
-import { executeDBWrite } from '../steps/db-write';
-import { executeNotify } from '../steps/notify';
+import { executeSingleStep } from '../steps/index';
 
 export interface ExecuteStepsParams {
   workflow_run_id: string;
@@ -98,12 +94,7 @@ export async function executeStepsFrom({
     if (step.type === 'llm_call' || step.type === 'http_request') {
       billableStepCount++;
       try {
-        let stepRes: { output: any; attempt_count: number };
-        if (step.type === 'llm_call') {
-          stepRes = await executeLLMCall(config, previousOutput);
-        } else {
-          stepRes = await executeHTTPRequest(config);
-        }
+        const stepRes = await executeSingleStep(step.type, config, previousOutput);
 
         previousOutput = stepRes.output;
 
@@ -158,9 +149,7 @@ export async function executeStepsFrom({
         isFailed = true;
         break; // STOP loop on failure
       }
-    } else if (step.type === 'conditional_branch') {
-      try {
-        const branchRes = executeConditionalBranch(config, previousOutput);
+        const branchRes = await executeSingleStep(step.type, config, previousOutput);
         previousOutput = branchRes.output;
 
         if (stepRunId) {
@@ -237,9 +226,7 @@ export async function executeStepsFrom({
         isFailed = true;
         break;
       }
-    } else if (step.type === 'db_write') {
-      try {
-        const dbRes = await executeDBWrite(workflow_run_id, stepRunId, config, previousOutput);
+        const dbRes = await executeSingleStep(step.type, config, previousOutput);
         previousOutput = dbRes.output;
 
         if (stepRunId) {
@@ -292,8 +279,7 @@ export async function executeStepsFrom({
         isFailed = true;
         break;
       }
-    } else if (step.type === 'notify') {
-      const notifyRes = executeNotify(config, previousOutput);
+      const notifyRes = await executeSingleStep(step.type, config, previousOutput);
       previousOutput = notifyRes.output;
 
       if (stepRunId) {
