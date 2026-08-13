@@ -15,7 +15,7 @@ export async function executeStepsFrom({
   org_id,
   start_step_order = 1,
   initial_previous_output = null,
-}: ExecuteStepsParams): Promise<{ status: 'completed' | 'paused' | 'failed' }> {
+}: ExecuteStepsParams): Promise<{ status: 'completed' | 'paused' | 'failed' }> {  // TODO: Return more detailed status with error messages and step-specific output
   // Fetch ordered steps starting at or after start_step_order
   const stepsRes = await executeGraphQL(`
     query GetWorkflowSteps($workflow_id: uuid!) {
@@ -77,17 +77,17 @@ export async function executeStepsFrom({
 
     // Create running step_run for current step
     const createStepRunRes = await executeGraphQL(`
-      mutation CreateStepRun($workflow_run_id: uuid!, $step_id: uuid!) {
+      mutation CreateStepRun($workflow_run_id: uuid!, $step_id: uuid!, $input: jsonb) {
         insert_step_runs_one(object: {
           workflow_run_id: $workflow_run_id,
           step_id: $step_id,
           status: "running",
-          input: ${JSON.stringify(config)}
+          input: $input
         }) {
           id
         }
       }
-    `, { workflow_run_id, step_id: step.id });
+    `, { workflow_run_id, step_id: step.id, input: config });
 
     const stepRunId = createStepRunRes.data?.insert_step_runs_one?.id;
 
@@ -149,6 +149,8 @@ export async function executeStepsFrom({
         isFailed = true;
         break; // STOP loop on failure
       }
+    } else if (step.type === 'conditional_branch') {
+      try {
         const branchRes = await executeSingleStep(step.type, config, previousOutput);
         previousOutput = branchRes.output;
 
@@ -169,8 +171,12 @@ export async function executeStepsFrom({
           `, { step_run_id: stepRunId, output: branchRes.output });
         }
 
-        if (branchRes.skip_to_order !== null && branchRes.skip_to_order !== undefined) {
-          const targetIndex = stepsToExecute.findIndex((s: any) => s.step_order === branchRes.skip_to_order);
+        const skipToOrder = branchRes.output?.condition_met
+          ? (config.then_skip_to ?? null)
+          : (config.else_skip_to ?? null);
+
+        if (skipToOrder !== null && skipToOrder !== undefined) {
+          const targetIndex = stepsToExecute.findIndex((s: any) => s.step_order === skipToOrder);
           if (targetIndex > i) {
             for (let j = i + 1; j < targetIndex; j++) {
               const skippedStep = stepsToExecute[j];
@@ -226,6 +232,8 @@ export async function executeStepsFrom({
         isFailed = true;
         break;
       }
+    } else if (step.type === 'db_write') {
+      try {
         const dbRes = await executeSingleStep(step.type, config, previousOutput);
         previousOutput = dbRes.output;
 
@@ -279,6 +287,7 @@ export async function executeStepsFrom({
         isFailed = true;
         break;
       }
+    } else if (step.type === 'notify') {
       const notifyRes = await executeSingleStep(step.type, config, previousOutput);
       previousOutput = notifyRes.output;
 
