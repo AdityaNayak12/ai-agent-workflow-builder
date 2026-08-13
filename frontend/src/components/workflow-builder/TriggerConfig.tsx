@@ -1,5 +1,6 @@
 'use client';
 
+// ponytail: unified trigger config UI card styling with main builder section design
 import React, { useState } from 'react';
 import { useMutation } from '@apollo/client/react';
 import { INSERT_MANUAL_TRIGGER, CREATE_WEBHOOK_TRIGGER, DELETE_TRIGGER } from '../../graphql/mutations';
@@ -113,15 +114,14 @@ export const TriggerConfig: React.FC<TriggerConfigProps> = ({
   };
 
   return (
-    <div className="bg-[#1C1C1C] border border-[#2A2A2A] rounded-xl p-6 mb-6">
-      <div className="flex items-center justify-between mb-4">
-        <div>
-          <h2 className="text-lg font-semibold text-[#EDEDED] flex items-center gap-2">
-            <span>⚡</span> Triggers
+    <div className="bg-[#1C1C1C] border border-[#2A2A2A] rounded p-6 space-y-4">
+      {/* Uniform Section Header */}
+      <div className="flex items-center justify-between border-b border-[#2A2A2A] pb-3">
+        <div className="flex items-center space-x-2">
+          <span className="w-2.5 h-2.5 rounded-full bg-[#E8A33D] inline-block" />
+          <h2 className="font-mono text-xs font-semibold tracking-wider uppercase text-[#EDEBE6]">
+            WORKFLOW TRIGGERS
           </h2>
-          <p className="text-xs text-[#A1A1A1] mt-0.5">
-            Configure how and when this workflow is triggered for execution.
-          </p>
         </div>
 
         {!isReadOnly && (
@@ -130,22 +130,22 @@ export const TriggerConfig: React.FC<TriggerConfigProps> = ({
               type="button"
               id="add-trigger-btn"
               onClick={() => setShowTypePicker(!showTypePicker)}
-              className="px-3.5 py-1.5 bg-[#E8A33D] hover:bg-[#D9922C] text-[#0A0A0A] text-xs font-semibold rounded transition-colors flex items-center gap-1.5"
+              className="bg-[#E8A33D] hover:bg-[#D49231] text-[#141414] font-mono text-xs font-bold uppercase tracking-wider px-3 py-1.5 rounded transition-colors flex items-center space-x-1"
             >
-              <span>+</span> ADD TRIGGER
+              <span>+ ADD TRIGGER</span>
             </button>
 
             {showTypePicker && (
-              <div className="absolute right-0 mt-2 w-56 bg-[#141414] border border-[#2A2A2A] rounded-lg shadow-xl z-20 p-2 space-y-1">
+              <div className="absolute right-0 mt-2 w-56 bg-[#141414] border border-[#2A2A2A] rounded shadow-xl z-20 p-2 space-y-1">
                 <button
                   type="button"
                   id="trigger-option-manual"
                   onClick={handleAddManual}
                   disabled={addingTrigger}
-                  className="w-full text-left px-3 py-2 text-xs rounded text-[#EDEDED] hover:bg-[#252525] transition-colors flex flex-col"
+                  className="w-full text-left px-3 py-2 text-xs font-mono rounded text-[#EDEBE6] hover:bg-[#252525] transition-colors flex flex-col"
                 >
                   <span className="font-semibold text-white">Manual Trigger</span>
-                  <span className="text-[10px] text-[#A1A1A1]">Run on-demand via UI or API call</span>
+                  <span className="text-[10px] text-[#A0A0A0]">Run on-demand via UI or API call</span>
                 </button>
 
                 {isOwner && (
@@ -154,13 +154,13 @@ export const TriggerConfig: React.FC<TriggerConfigProps> = ({
                     id="trigger-option-webhook"
                     onClick={handleAddWebhook}
                     disabled={addingTrigger}
-                    className="w-full text-left px-3 py-2 text-xs rounded text-[#EDEDED] hover:bg-[#252525] transition-colors flex flex-col border-t border-[#2A2A2A]/50 pt-2"
+                    className="w-full text-left px-3 py-2 text-xs font-mono rounded text-[#EDEBE6] hover:bg-[#252525] transition-colors flex flex-col border-t border-[#2A2A2A]/50 pt-2"
                   >
                     <span className="font-semibold text-[#A78BFA] flex items-center justify-between">
                       Webhook Trigger
-                      <span className="text-[9px] bg-[#A78BFA]/20 text-[#A78BFA] px-1.5 py-0.5 rounded font-mono">OWNER ONLY</span>
+                      <span className="text-[9px] bg-[#A78BFA]/20 text-[#A78BFA] px-1.5 py-0.5 rounded font-mono uppercase">OWNER</span>
                     </span>
-                    <span className="text-[10px] text-[#A1A1A1]">Inbound HTTP POST webhook with secret header</span>
+                    <span className="text-[10px] text-[#A0A0A0]">Inbound HTTP POST webhook with secret header</span>
                   </button>
                 )}
               </div>
@@ -170,16 +170,16 @@ export const TriggerConfig: React.FC<TriggerConfigProps> = ({
       </div>
 
       {errorMsg && (
-        <div className="bg-red-500/10 border border-red-500/30 text-red-400 text-xs p-3 rounded mb-4 flex items-center justify-between">
+        <div className="bg-[#EF4444]/10 border border-[#EF4444]/30 text-[#EF4444] text-xs font-mono p-3 rounded flex items-center justify-between">
           <span>{errorMsg}</span>
-          <button type="button" onClick={() => setErrorMsg(null)} className="text-red-400 font-bold hover:text-white">✕</button>
+          <button type="button" onClick={() => setErrorMsg(null)} className="text-[#EF4444] font-bold hover:text-white">✕</button>
         </div>
       )}
 
       {/* Triggers List */}
       {triggers.length === 0 ? (
-        <div className="text-center py-6 border border-dashed border-[#2A2A2A] rounded-lg">
-          <p className="text-xs text-[#A1A1A1]">No triggers attached to this workflow yet.</p>
+        <div className="text-center py-6 border border-dashed border-[#2A2A2A] rounded">
+          <p className="text-xs font-mono text-[#6B6B6B]">No triggers attached to this workflow yet.</p>
         </div>
       ) : (
         <div className="space-y-3">
@@ -188,7 +188,7 @@ export const TriggerConfig: React.FC<TriggerConfigProps> = ({
             return (
               <div
                 key={trig.id}
-                className="bg-[#141414] border border-[#2A2A2A] rounded-lg p-3.5 flex items-center justify-between"
+                className="bg-[#141414] border border-[#2A2A2A] rounded p-3 flex items-center justify-between font-mono"
               >
                 <div className="flex items-center space-x-3">
                   <span
@@ -202,10 +202,10 @@ export const TriggerConfig: React.FC<TriggerConfigProps> = ({
                   </span>
 
                   <div>
-                    <p className="text-xs font-medium text-[#EDEDED]">
+                    <p className="text-xs font-semibold text-[#EDEBE6]">
                       {isWebhook ? 'Inbound HTTP Webhook Trigger' : 'Manual / On-Demand Execution'}
                     </p>
-                    <p className="text-[10px] font-mono text-[#A1A1A1]">ID: {trig.id}</p>
+                    <p className="text-[10px] text-[#A0A0A0]">ID: {trig.id}</p>
                   </div>
                 </div>
 
@@ -213,7 +213,7 @@ export const TriggerConfig: React.FC<TriggerConfigProps> = ({
                   <button
                     type="button"
                     onClick={() => handleDeleteTrigger(trig.id)}
-                    className="text-xs text-red-400 hover:text-red-300 transition-colors px-2 py-1 hover:bg-red-500/10 rounded"
+                    className="text-xs font-mono text-[#EF4444] hover:text-red-300 transition-colors px-2 py-1 hover:bg-[#EF4444]/10 rounded uppercase"
                   >
                     DELETE
                   </button>
@@ -227,10 +227,11 @@ export const TriggerConfig: React.FC<TriggerConfigProps> = ({
       {/* One-Time Secret Reveal Modal */}
       {secretRevealData && (
         <div className="fixed inset-0 bg-black/80 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-[#1C1C1C] border border-[#E8A33D]/40 rounded-xl p-6 max-w-lg w-full shadow-2xl space-y-4">
+          <div className="bg-[#1C1C1C] border border-[#E8A33D]/40 rounded p-6 max-w-lg w-full shadow-2xl space-y-4 font-mono">
             <div className="flex items-center justify-between border-b border-[#2A2A2A] pb-3">
-              <h3 className="text-base font-semibold text-[#EDEDED] flex items-center gap-2">
-                <span>🔑</span> Webhook Secret Generated
+              <h3 className="text-sm font-semibold text-[#EDEBE6] flex items-center space-x-2">
+                <span>🔑</span>
+                <span>WEBHOOK SECRET GENERATED</span>
               </h3>
               <span className="text-[10px] bg-[#E8A33D]/20 text-[#E8A33D] font-mono px-2 py-0.5 rounded font-semibold uppercase">
                 ONE-TIME REVEAL
@@ -238,16 +239,16 @@ export const TriggerConfig: React.FC<TriggerConfigProps> = ({
             </div>
 
             {/* Warning Banner */}
-            <div className="bg-[#E8A33D]/10 border border-[#E8A33D]/30 text-[#E8A33D] text-xs p-3 rounded-lg flex items-start space-x-2">
-              <span className="text-base">⚠️</span>
+            <div className="bg-[#E8A33D]/10 border border-[#E8A33D]/30 text-[#E8A33D] text-xs p-3 rounded flex items-start space-x-2">
+              <span className="text-sm">⚠️</span>
               <p className="leading-relaxed">
-                <strong className="font-semibold">Copy this secret now!</strong> For security reasons, this secret is generated server-side and will <span className="underline decoration-[#E8A33D]/50">never be displayed again</span> after you close this modal.
+                <strong className="font-semibold">Copy this secret now!</strong> Generated server-side and will <span className="underline">never be displayed again</span> after closing.
               </p>
             </div>
 
             {/* Webhook URL */}
             <div>
-              <label className="block text-xs font-medium text-[#A1A1A1] mb-1">
+              <label className="block text-xs font-mono text-[#A0A0A0] mb-1 uppercase">
                 Webhook Target URL
               </label>
               <div className="flex items-center space-x-2">
@@ -255,21 +256,21 @@ export const TriggerConfig: React.FC<TriggerConfigProps> = ({
                   type="text"
                   readOnly
                   value={secretRevealData.webhookUrl}
-                  className="w-full bg-[#141414] border border-[#2A2A2A] rounded px-3 py-2 text-xs font-mono text-[#EDEDED] focus:outline-none"
+                  className="w-full bg-[#141414] border border-[#2A2A2A] rounded px-3 py-2 text-xs font-mono text-[#EDEBE6] focus:outline-none"
                 />
                 <button
                   type="button"
                   onClick={() => copyToClipboard(secretRevealData.webhookUrl, 'url')}
-                  className="px-3 py-2 bg-[#252525] hover:bg-[#333] text-xs text-white rounded font-medium transition-colors shrink-0"
+                  className="px-3 py-2 bg-[#2A2A2A] hover:bg-[#333] text-xs text-[#EDEBE6] rounded font-mono transition-colors shrink-0 uppercase"
                 >
-                  {copiedUrl ? 'Copied!' : 'Copy'}
+                  {copiedUrl ? 'COPIED!' : 'COPY'}
                 </button>
               </div>
             </div>
 
             {/* Webhook Secret */}
             <div>
-              <label className="block text-xs font-medium text-[#A1A1A1] mb-1">
+              <label className="block text-xs font-mono text-[#A0A0A0] mb-1 uppercase">
                 Webhook Secret Key (<code className="text-[#A78BFA]">x-webhook-secret</code>)
               </label>
               <div className="flex items-center space-x-2">
@@ -284,9 +285,9 @@ export const TriggerConfig: React.FC<TriggerConfigProps> = ({
                   type="button"
                   id="copy-secret-btn"
                   onClick={() => copyToClipboard(secretRevealData.secret, 'secret')}
-                  className="px-3 py-2 bg-[#A78BFA] hover:bg-[#9061F9] text-black text-xs font-semibold rounded transition-colors shrink-0"
+                  className="px-3 py-2 bg-[#A78BFA] hover:bg-[#9061F9] text-black text-xs font-mono font-semibold rounded transition-colors shrink-0 uppercase"
                 >
-                  {copiedSecret ? 'Copied!' : 'Copy Secret'}
+                  {copiedSecret ? 'COPIED!' : 'COPY SECRET'}
                 </button>
               </div>
             </div>
@@ -296,9 +297,9 @@ export const TriggerConfig: React.FC<TriggerConfigProps> = ({
                 type="button"
                 id="close-secret-modal-btn"
                 onClick={() => setSecretRevealData(null)}
-                className="w-full py-2.5 bg-[#E8A33D] hover:bg-[#D9922C] text-[#0A0A0A] text-xs font-bold rounded transition-colors uppercase tracking-wider"
+                className="w-full py-2 bg-[#E8A33D] hover:bg-[#D49231] text-[#141414] font-mono text-xs font-bold rounded transition-colors uppercase tracking-wider"
               >
-                I Have Saved The Secret
+                I HAVE SAVED THE SECRET
               </button>
             </div>
           </div>

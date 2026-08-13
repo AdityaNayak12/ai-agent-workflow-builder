@@ -58,7 +58,7 @@ export default function WorkflowBuilderPage() {
   const isNew = rawId === 'new';
 
   const { currentOrg, currentRole, loading: orgLoading } = useOrg();
-  const isReadOnly = currentRole === 'viewer';
+  const isReadOnly = !orgLoading && currentRole !== 'owner' && currentRole !== 'editor';
 
   const [name, setName] = useState('');
   const [description, setDescription] = useState('');
